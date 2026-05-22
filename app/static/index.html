@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Few-Shot Prompting & Vacation API Dashboard</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="glass-bg-blur"></div>
+    <div class="glass-bg-blur-secondary"></div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                <div>
+                    <h1>Few-Shot <span class="gradient-text">Prompting</span></h1>
+                    <p class="subtitle">Engenharia de Prompt para Software Engineers</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="/docs" target="_blank" class="btn btn-secondary btn-sm" id="btn-swagger">
+                    <i class="fa-solid fa-code"></i> Swagger OpenAPI
+                </a>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="app-nav">
+            <button class="nav-tab active" data-tab="tab-dashboard" id="tab-btn-dashboard">
+                <i class="fa-solid fa-chart-line"></i> <span>Dashboard & API</span>
+            </button>
+            <button class="nav-tab" data-tab="tab-guide" id="tab-btn-guide">
+                <i class="fa-solid fa-book-open"></i> <span>Guia Few-Shot</span>
+            </button>
+            <button class="nav-tab" data-tab="tab-playground" id="tab-btn-playground">
+                <i class="fa-solid fa-terminal"></i> <span>Prompt Playground</span>
+            </button>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="app-main">
+            <!-- TAB 1: DASHBOARD & API -->
+            <section id="tab-dashboard" class="tab-content active">
+                <div class="dashboard-grid">
+                    
+                    <!-- Employees Section -->
+                    <div class="card glass-card" id="employees-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-users icon-accent"></i>
+                                <h2>Funcionários</h2>
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="openModal('employee-modal')" id="btn-add-employee">
+                                <i class="fa-solid fa-plus"></i> Novo
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="custom-table" id="employees-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Nome</th>
+                                            <th>Cargo</th>
+                                            <th>Admissão</th>
+                                            <th>Disponível</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="employees-tbody">
+                                        <!-- Dynamic Content -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Vacation Requests Section -->
+                    <div class="card glass-card" id="vacations-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-calendar-check icon-accent"></i>
+                                <h2>Solicitações de Férias</h2>
+                            </div>
+                            <button class="btn btn-primary btn-sm" onclick="openModal('vacation-modal')" id="btn-add-vacation">
+                                <i class="fa-solid fa-paper-plane"></i> Solicitar
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <table class="custom-table" id="vacations-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Funcionário</th>
+                                            <th>Período</th>
+                                            <th>Dias</th>
+                                            <th>Status</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="vacations-tbody">
+                                        <!-- Dynamic Content -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: GUIA FEW-SHOT -->
+            <section id="tab-guide" class="tab-content">
+                <div class="guide-container">
+                    <div class="card glass-card">
+                        <div class="card-body markdown-body">
+                            <div class="guide-header">
+                                <span class="badge badge-purple">Metodologia</span>
+                                <h2>O que é Few-Shot Prompting na Engenharia de Software?</h2>
+                                <p class="lead">Few-Shot Prompting (ou aprendizado com poucos exemplos) é uma técnica de Engenharia de Prompt onde fornecemos alguns exemplos explícitos de entradas e saídas esperadas no corpo do prompt para condicionar e guiar o modelo de linguagem (LLM).</p>
+                            </div>
+                            
+                            <hr class="separator">
+
+                            <div class="guide-grid">
+                                <div class="guide-feature">
+                                    <div class="feature-icon"><i class="fa-solid fa-bullseye"></i></div>
+                                    <h3>Por que Usar?</h3>
+                                    <p>Modelos de linguagem às vezes falham em seguir formatos de saída complexos (como JSONs rígidos, esquemas de banco de dados ou chamadas REST precisas) se receberem apenas instruções abstratas (Zero-Shot). Ao dar 2 a 5 exemplos reais, o modelo captura o padrão estrutural e de tom com precisão impecável.</p>
+                                </div>
+                                <div class="guide-feature">
+                                    <div class="feature-icon"><i class="fa-solid fa-code-fork"></i></div>
+                                    <h3>Casos de Uso em Software</h3>
+                                    <p>Excelente para converter logs brutos em relatórios formatados, traduzir linguagem natural de usuários em comandos de API (nosso caso de estudo), gerar código padronizado com arquitetura corporativa, ou criar scripts de testes unitários específicos.</p>
+                                </div>
+                            </div>
+
+                            <div class="concept-visual">
+                                <div class="visual-node">Instrução / Contexto</div>
+                                <div class="visual-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+                                <div class="visual-examples">
+                                    <div class="example-node">Exemplo 1: Entrada ➔ Saída Esperada</div>
+                                    <div class="example-node">Exemplo 2: Entrada ➔ Saída Esperada</div>
+                                </div>
+                                <div class="visual-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+                                <div class="visual-node highlight-node">Nova Entrada (Input do Usuário)</div>
+                                <div class="visual-arrow"><i class="fa-solid fa-arrow-right-to-bracket"></i></div>
+                                <div class="visual-node result-node">Saída Consistente e Correta</div>
+                            </div>
+
+                            <h3>Estrutura Anatômica de um Prompt Few-Shot</h3>
+                            <p>Um prompt few-shot de qualidade industrial possui quatro seções cruciais:</p>
+                            <ol class="styled-list">
+                                <li><strong>Instrução/Papel (System Prompt):</strong> Define quem o modelo é e qual sua tarefa principal (ex: "Você é um interpretador que traduz comandos em chamadas de API de férias").</li>
+                                <li><strong>Contexto/Regras:</strong> Explica os limites do sistema, formatos aceitos e esquemas de payload (ex: explicar as rotas e tipos de dados da nossa API).</li>
+                                <li><strong>Demonstrações (Few-Shot Examples):</strong> A alma do prompt. Pares de entrada e saída claramente delimitados.</li>
+                                <li><strong>Entrada do Usuário (Input):</strong> O novo comando a ser processado, no mesmo formato dos exemplos anteriores, aguardando a finalização da LLM.</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: PROMPT PLAYGROUND -->
+            <section id="tab-playground" class="tab-content">
+                <div class="playground-grid">
+                    
+                    <!-- Left: Control panel -->
+                    <div class="card glass-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-gears icon-accent"></i>
+                                <h2>Configurar Entrada</h2>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label for="prompt-input-select">Escolha um comando padrão ou digite o seu:</label>
+                                <select id="prompt-input-select" class="form-control" onchange="usePredefinedPrompt()">
+                                    <option value="custom">-- Digitar comando personalizado --</option>
+                                    <option value="1">Solicitar férias para João Silva (ID 1) de 25 de Dezembro de 2026 até 5 de Janeiro de 2027</option>
+                                    <option value="2">Cadastrar a funcionária Ana Souza que trabalha como Engenheira de Software contratada em 2026-05-22</option>
+                                    <option value="3">Listar todos os funcionários da empresa atualmente cadastrados</option>
+                                    <option value="4">Aprovar a solicitação de férias de ID número 2</option>
+                                    <option value="5">Recusar a solicitação de férias de ID número 4</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="prompt-custom-input">Comando em Linguagem Natural (Português):</label>
+                                <textarea id="prompt-custom-input" class="form-control" rows="3" placeholder="Digite em linguagem natural o que deseja fazer com a API..."></textarea>
+                            </div>
+
+                            <div class="action-buttons">
+                                <button class="btn btn-primary btn-block" onclick="generateFewShotPrompt()" id="btn-generate-prompt">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar Prompt Few-Shot
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Prompt output & Simulation -->
+                    <div class="card glass-card" id="output-prompt-card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <i class="fa-solid fa-terminal icon-accent"></i>
+                                <h2>Prompt Few-Shot Gerado</h2>
+                            </div>
+                            <button class="btn btn-secondary btn-xs" onclick="copyPromptToClipboard()" id="btn-copy-prompt">
+                                <i class="fa-solid fa-copy"></i> Copiar Prompt
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <p class="section-description">Este é o prompt completo estruturado que você enviaria para a LLM (como Gemini, GPT, Claude):</p>
+                            <div class="code-editor-container">
+                                <pre><code id="few-shot-prompt-code" class="language-markdown">Clique em "Gerar Prompt Few-Shot" à esquerda...</code></pre>
+                            </div>
+
+                            <hr class="separator">
+
+                            <div class="simulation-section">
+                                <div class="simulation-header">
+                                    <div class="card-title">
+                                        <i class="fa-solid fa-robot icon-accent"></i>
+                                        <h3>Simulador de IA Embutido</h3>
+                                    </div>
+                                    <button class="btn btn-accent btn-sm" onclick="simulateLLMResponse()" id="btn-simulate-llm">
+                                        <i class="fa-solid fa-play"></i> Simular Resposta da IA
+                                    </button>
+                                </div>
+                                
+                                <p class="section-description">Simula o processamento do prompt por um modelo de IA treinado, gerando a chamada de API precisa e executando-a contra o nosso backend real!</p>
+                                
+                                <div class="simulation-grid">
+                                    <div>
+                                        <label>Saída Prevista da IA (Chamada de API):</label>
+                                        <pre><code id="simulation-output-raw" class="language-json">Aguardando simulação...</code></pre>
+                                    </div>
+                                    <div>
+                                        <label>Resultado da Execução no Servidor Real:</label>
+                                        <pre><code id="simulation-execution-result" class="language-json">Aguardando execução...</code></pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer-brand">
+            <p>Desenvolvido com <i class="fa-solid fa-heart icon-heart"></i> focado em Melhores Práticas de Prompt Engineering & FastAPI.</p>
+        </footer>
+    </div>
+
+    <!-- MODAL: ADD EMPLOYEE -->
+    <div class="modal-overlay" id="employee-modal">
+        <div class="modal glass-card">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-user-plus icon-accent"></i> Cadastrar Funcionário</h2>
+                <button class="modal-close" onclick="closeModal('employee-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="employee-form" onsubmit="submitEmployeeForm(event)">
+                    <div class="form-group">
+                        <label for="emp-name">Nome Completo</label>
+                        <input type="text" id="emp-name" class="form-control" required placeholder="Ex: João da Silva">
+                    </div>
+                    <div class="form-group-grid">
+                        <div class="form-group">
+                            <label for="emp-role">Cargo</label>
+                            <input type="text" id="emp-role" class="form-control" required placeholder="Ex: Desenvolvedor Backend">
+                        </div>
+                        <div class="form-group">
+                            <label for="emp-hire-date">Data de Contratação</label>
+                            <input type="date" id="emp-hire-date" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="emp-vacation-days">Direito de Férias Inicial (Dias)</label>
+                        <input type="number" id="emp-vacation-days" class="form-control" value="30" min="0" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('employee-modal')">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Cadastrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: REQUEST VACATION -->
+    <div class="modal-overlay" id="vacation-modal">
+        <div class="modal glass-card">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-plane-departure icon-accent"></i> Solicitar Férias</h2>
+                <button class="modal-close" onclick="closeModal('vacation-modal')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="vacation-form" onsubmit="submitVacationForm(event)">
+                    <div class="form-group">
+                        <label for="vac-employee-id">Selecione o Funcionário</label>
+                        <select id="vac-employee-id" class="form-control" required>
+                            <!-- Dynamic Content -->
+                        </select>
+                    </div>
+                    <div class="form-group-grid">
+                        <div class="form-group">
+                            <label for="vac-start-date">Data de Início</label>
+                            <input type="date" id="vac-start-date" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="vac-end-date">Data de Fim</label>
+                            <input type="date" id="vac-end-date" class="form-control" required>
+                        </div>
+                    </div>
+                    <div id="vacation-error" class="error-msg-box" style="display: none;"></div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('vacation-modal')">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Enviar Solicitação</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Script -->
+    <script src="/static/app.js"></script>
+</body>
+</html>
