@@ -48,36 +48,69 @@ prompt-few-shot/
 
 Este projeto foi projetado para rodar **exclusivamente em ambiente containerizado (Docker)**. Isso garante consistência total nas dependências de runtime, nos servidores de testes e na visualização de relatórios do **Allure Report**, sem a necessidade de instalações locais adicionais (como Python, dependências do sistema ou instaladores do Allure CLI).
 
-### 📐 Arquitetura do Ambiente no Docker
+## 📐 Arquitetura do Projeto (Modelo C4)
 
-Abaixo, apresentamos o fluxo de integração e comunicação entre os serviços no ambiente do Docker Compose:
+Para facilitar o entendimento técnico e a visualização do projeto, descrevemos a arquitetura utilizando o padrão **Modelo C4**:
+
+### 🟢 Nível 1: Diagrama de Contexto (System Context)
+Este diagrama apresenta o escopo macro do sistema, quem são seus usuários finais e como o ecossistema se integra externamente:
 
 ```mermaid
-graph TD
-    Host[Máquina Hospedeira (Host)]
-    subgraph Docker_Compose [Ambiente Docker Compose]
-        App[Container API/App:<br>prompt_few_shot_app]
-        Allure[Container Allure API:<br>prompt_few_shot_allure]
-        AllureUI[Container Allure UI:<br>prompt_few_shot_allure_ui]
-        Vol[Volume Compartilhado:<br>./allure-results]
+graph TB
+    subgraph Contexto ["Nível 1: Contexto do Sistema"]
+        User["👤 Usuário (Gestor / Engenheiro QA) <br>[Pessoa] <br><br> Gerencia funcionários, solicita férias e executa testes."]
+        System["💻 Sistema de Férias & Simulator Few-Shot <br>[Sistema de Software] <br><br> Permite interagir com a API de Férias de forma convencional ou inteligente por IA, gerando relatórios de testes."]
+        LLM["🤖 API da IA (Simulada) <br>[Sistema Externo] <br><br> Traduz linguagem natural em comandos JSON estruturados via Few-Shot."]
+
+        User -- "Acessa dashboard e executa testes" --> System
+        System -- "Envia prompt Few-Shot e recebe JSON" --> LLM
     end
 
-    Host -- "1. Inicia Serviços (docker compose up)" --> Docker_Compose
-    Host -- "2. Executa Testes BDD/Unitários" --> App
-    App -- "3. Gera Resultados (.json)" --> Vol
-    Vol -- "4. Atualiza Relatório automaticamente" --> Allure
-    AllureUI -- "5. Consome API" --> Allure
-    Host -- "6. Acessa Dashboard & API do Projeto (8080)" --> App
-    Host -- "7. Acessa Swagger da API Allure (5050)" --> Allure
-    Host -- "8. Acessa Relatório Direto (5050/latest-report)" --> Allure
-    Host -- "9. Acessa Interface Gráfica Allure UI (5252)" --> AllureUI
+    style User fill:#1264a3,stroke:#0c4775,stroke-width:2px,color:#fff;
+    style System fill:#1d9a56,stroke:#146b3c,stroke-width:2px,color:#fff;
+    style LLM fill:#8a8a8a,stroke:#616161,stroke-width:2px,color:#fff;
+```
 
-    style Host fill:#f9f9f9,stroke:#333,stroke-width:2px;
-    style Docker_Compose fill:#e6f7ff,stroke:#0050b3,stroke-width:2px;
-    style App fill:#bae7ff,stroke:#0050b3,stroke-width:1px;
-    style Allure fill:#d9f7be,stroke:#389e0d,stroke-width:1px;
-    style AllureUI fill:#ffd8bf,stroke:#d4380d,stroke-width:1px;
-    style Vol fill:#ffe58f,stroke:#d4b106,stroke-width:1px;
+---
+
+### 🔵 Nível 2: Diagrama de Containers
+Este diagrama detalha todos os elementos tecnológicos de runtime rodando sob a nossa fronteira do Docker Compose, especificando as conexões de volumes, APIs e portas de comunicação:
+
+```mermaid
+graph TB
+    subgraph LimiteSystem ["Nível 2: Containers do Sistema"]
+        subgraph Browser ["Navegador do Usuário"]
+            SPA["🌐 Single Page Application (SPA)<br>[HTML5 / Modern CSS / Vanilla JS]<br><br>Interface do usuário com o dashboard e o Prompt Playground."]
+        end
+
+        subgraph DockerCompose ["Ambiente Docker Compose"]
+            App["📦 API Application<br>[Python / FastAPI / Uvicorn]<br><br>Provedor das rotas REST e orquestração do simulador de IA."]
+            DB["💾 Banco de Dados em Memória<br>[Dicionários Python]<br><br>Armazena temporariamente os dados de funcionários e solicitações."]
+            
+            Allure["📊 Allure API Service<br>[Docker / Java]<br><br>Processa os resultados dos testes e gera os relatórios."]
+            AllureUI["🖥️ Allure UI Dashboard<br>[Docker / NodeJS]<br><br>Interface web premium para visualizar gráficos e métricas dos testes."]
+        end
+        
+        Vol["📂 Volume Compartilhado<br>[./allure-results]<br><br>Compartilha arquivos .json de resultados gerados pelo pytest/behave."]
+
+        SPA -- "1. Faz chamadas REST (Porta 8080)" --> App
+        App -- "2. Lê / Grava dados" --> DB
+        
+        App -- "3. Salva resultados dos testes" --> Vol
+        Vol -- "4. Lê resultados" --> Allure
+        AllureUI -- "5. Consome dados da API (Porta 5050)" --> Allure
+        
+        SPA -. "6. Exibe relatórios (Porta 5252)" .-> AllureUI
+    end
+
+    style Browser fill:#f5f5f5,stroke:#d9d9d9,stroke-width:1px;
+    style DockerCompose fill:#e6f7ff,stroke:#1890ff,stroke-width:2px;
+    style SPA fill:#1890ff,stroke:#096dd9,stroke-width:1px,color:#fff;
+    style App fill:#1890ff,stroke:#096dd9,stroke-width:1px,color:#fff;
+    style Allure fill:#722ed1,stroke:#531dab,stroke-width:1px,color:#fff;
+    style AllureUI fill:#722ed1,stroke:#531dab,stroke-width:1px,color:#fff;
+    style DB fill:#13c2c2,stroke:#08979c,stroke-width:1px,color:#fff;
+    style Vol fill:#fa8c16,stroke:#d4380d,stroke-width:1px,color:#fff;
 ```
 
 ---
