@@ -1,0 +1,38 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prompt_few_shot_app
+    ports:
+      - "8080:8000"
+    volumes:
+      # Mount the current directory into the container.
+      # This allows changes made locally to be instantly reflected inside the container.
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+    # We run with --reload in compose to make it optimal for local development.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  allure:
+    image: frankescobar/allure-docker-service:latest
+    container_name: prompt_few_shot_allure
+    environment:
+      CHECK_RESULTS_EVERY_SECONDS: 3
+      KEEP_HISTORY: "true"
+    ports:
+      - "5050:5050"
+    volumes:
+      - ./allure-results:/app/allure-results
+
+  allure-ui:
+    image: frankescobar/allure-docker-service-ui:latest
+    container_name: prompt_few_shot_allure_ui
+    environment:
+      ALLURE_DOCKER_PUBLIC_API_URL: "http://localhost:5050"
+    ports:
+      - "5252:5252"
+    depends_on:
+      - allure
+

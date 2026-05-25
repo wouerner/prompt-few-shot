@@ -34,6 +34,9 @@ prompt-few-shot/
 │       ├── app.js         # Lógica do dashboard e simulador de Few-Shot
 │       ├── index.html     # Interface do usuário (HTML5 semântico)
 │       └── styles.css     # Estilos visuais elegantes, paleta de cores moderna e responsividade
+├── tests/                 # Pasta unificada contendo toda a suíte de testes
+│   ├── unit/              # Testes unitários e de integração (pytest)
+│   └── bdd/               # Testes de comportamento em linguagem Gherkin (behave)
 ├── FEW_SHOT_GUIDE.md      # Guia Teórico Completo sobre Few-Shot Prompting
 ├── requirements.txt       # Dependências de pacotes Python
 └── README.md              # Este arquivo de documentação
@@ -41,77 +44,99 @@ prompt-few-shot/
 
 ---
 
-## 🚀 Como Executar o Projeto
+## 🐳 Executando o Projeto com Docker (Ambiente Único)
 
-Siga os passos abaixo para rodar o projeto localmente em sua máquina:
+Este projeto foi projetado para rodar **exclusivamente em ambiente containerizado (Docker)**. Isso garante consistência total nas dependências de runtime, nos servidores de testes e na visualização de relatórios do **Allure Report**, sem a necessidade de instalações locais adicionais (como Python, dependências do sistema ou instaladores do Allure CLI).
 
-### 1. Clonar ou Acessar o Diretório
-Navegue até a pasta raiz do projeto:
-```bash
-cd prompt-few-shot
-```
+### 📐 Arquitetura do Ambiente no Docker
 
-### 2. Configurar o Ambiente Virtual (Recomendado)
-Crie um ambiente virtual Python para isolar as dependências:
-```bash
-# No Linux/macOS:
-python3 -m venv venv
-source venv/bin/activate
+Abaixo, apresentamos o fluxo de integração e comunicação entre os serviços no ambiente do Docker Compose:
 
-# No Windows (PowerShell):
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
+```mermaid
+graph TD
+    Host[Máquina Hospedeira (Host)]
+    subgraph Docker_Compose [Ambiente Docker Compose]
+        App[Container API/App:<br>prompt_few_shot_app]
+        Allure[Container Allure API:<br>prompt_few_shot_allure]
+        AllureUI[Container Allure UI:<br>prompt_few_shot_allure_ui]
+        Vol[Volume Compartilhado:<br>./allure-results]
+    end
 
-> [!TIP]
-> **Dica para sistemas Debian/Ubuntu (erro de *ensurepip*):**
-> Se ao tentar criar o ambiente virtual ocorrer o erro de `ensurepip` indisponível, você pode corrigi-lo instalando o pacote do sistema:
-> ```bash
-> sudo apt install python3-venv
-> ```
-> Ou, caso utilize um ambiente com Python gerenciado externamente, instale o `virtualenv` localmente e use-o para gerar o ambiente virtual isolado:
-> ```bash
-> python3 -m pip install --user virtualenv --break-system-packages
-> python3 -m virtualenv venv
-> source venv/bin/activate
-> ```
+    Host -- "1. Inicia Serviços (docker compose up)" --> Docker_Compose
+    Host -- "2. Executa Testes BDD/Unitários" --> App
+    App -- "3. Gera Resultados (.json)" --> Vol
+    Vol -- "4. Atualiza Relatório automaticamente" --> Allure
+    AllureUI -- "5. Consome API" --> Allure
+    Host -- "6. Acessa Dashboard & API do Projeto (8080)" --> App
+    Host -- "7. Acessa Swagger da API Allure (5050)" --> Allure
+    Host -- "8. Acessa Relatório Direto (5050/latest-report)" --> Allure
+    Host -- "9. Acessa Interface Gráfica Allure UI (5252)" --> AllureUI
 
-### 3. Instalar as Dependências
-Instale todos os pacotes necessários (aplicação e testes) listados no `requirements.txt` utilizando o ambiente ativado:
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Executar a Aplicação
-Inicie o servidor de desenvolvimento utilizando o Uvicorn:
-```bash
-python -m uvicorn app.main:app --reload
-```
-
-### 5. Acessar no Navegador
-Após inicializar o servidor, você poderá acessar:
-- **Aplicação & Playground**: [http://localhost:8000/](http://localhost:8000/)
-- **Documentação Interativa da API (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
-
-### 🧪 Executando os Testes Unitários
-
-O projeto possui uma suíte de testes completa cobrindo endpoints de funcionários, rotas de férias e todas as regras de negócio de saldo e sobreposição de datas.
-
-Para rodar os testes, garanta que as dependências de testes estão instaladas e execute:
-```bash
-python3 -m pytest
-```
-
-### 🥒 Executando os Testes de Feature (BDD)
-
-Também implementamos testes de comportamento BDD usando o framework **Behave** para validar as regras de negócio em linguagem natural (Gherkin em português) para o fluxo de aprovação de férias.
-
-Para rodar os testes BDD, execute o comando na raiz do projeto:
-```bash
-behave
+    style Host fill:#f9f9f9,stroke:#333,stroke-width:2px;
+    style Docker_Compose fill:#e6f7ff,stroke:#0050b3,stroke-width:2px;
+    style App fill:#bae7ff,stroke:#0050b3,stroke-width:1px;
+    style Allure fill:#d9f7be,stroke:#389e0d,stroke-width:1px;
+    style AllureUI fill:#ffd8bf,stroke:#d4380d,stroke-width:1px;
+    style Vol fill:#ffe58f,stroke:#d4b106,stroke-width:1px;
 ```
 
 ---
+
+### 🚀 Como Iniciar a Aplicação
+
+Siga os passos rápidos abaixo para construir e inicializar os containers:
+
+#### 1. Iniciar os Containers
+Na raiz do projeto, execute o comando:
+```bash
+docker compose up --build
+```
+> [!NOTE]
+> O container da aplicação (`app`) roda em modo de desenvolvimento com **hot-reload** ativado (`--reload`). Qualquer modificação feita no código localmente será refletida em tempo real dentro do container graças ao volume de montagem `./app` (mapeado de `. :/app`).
+
+#### 2. Serviços Disponíveis
+Após a inicialização bem-sucedida, você poderá acessar diretamente do seu navegador:
+*   **Aplicação & Playground Interativo**: [http://localhost:8080/](http://localhost:8080/)
+*   **Documentação Interativa da API do Projeto (Swagger)**: [http://localhost:8080/docs](http://localhost:8080/docs)
+*   **Interface Gráfica Premium do Allure (Dashboard)**: [http://localhost:5252/allure-docker-service-ui/](http://localhost:5252/allure-docker-service-ui/)
+*   **Visualização Direta do Relatório Allure (HTML)**: [http://localhost:5050/allure-docker-service/latest-report](http://localhost:5050/allure-docker-service/latest-report)
+*   **Swagger da API do Allure**: [http://localhost:5050/](http://localhost:5050/) (Esta URL raiz exibe a documentação Swagger da API interna do serviço Allure)
+
+---
+
+### 🧪 Executando os Testes & Gerando Relatórios Allure
+
+Com os containers em execução em um terminal, abra uma nova janela de terminal para rodar as suítes de testes:
+
+#### 1. Testes Unitários e de Integração (Pytest + Allure)
+Execute o `pytest` dentro do container da aplicação enviando os resultados para a pasta compartilhada:
+```bash
+docker compose exec app pytest --alluredir=allure-results
+```
+
+#### 2. Testes de Comportamento BDD (Behave + Allure)
+Execute o `behave` apontando para a pasta `tests/bdd` usando o formatador do Allure para gerar os relatórios na mesma pasta compartilhada:
+```bash
+docker compose exec app behave -f allure_behave.formatter:AllureFormatter -o allure-results tests/bdd
+```
+
+#### 3. Como Visualizar os Resultados do Allure
+O container do Allure monitora a pasta `./allure-results` a cada 3 segundos e reconstrói o relatório.
+
+Após executar os testes acima, você tem duas excelentes formas de ver os resultados:
+1.  **Interface Gráfica (Recomendado)**: Acesse **[http://localhost:5252/allure-docker-service-ui/](http://localhost:5252/allure-docker-service-ui/)** para ver um painel de controle interativo completo, com histórico, gráficos de tendências, status de cenários e logs de cada etapa de teste.
+2.  **Relatório HTML Direto**: Acesse **[http://localhost:5050/allure-docker-service/latest-report](http://localhost:5050/allure-docker-service/latest-report)** para carregar diretamente a página estática mais recente do Allure Report gerada pelo container.
+
+---
+
+### 🧹 Finalizando o Ambiente
+
+Para parar a execução e limpar todos os recursos alocados pelos containers, execute:
+```bash
+docker compose down
+```
+
+
 
 
 ## 🧠 O Conceito: Zero-Shot vs. Few-Shot
