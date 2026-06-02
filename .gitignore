@@ -72,3 +72,7 @@ test_env/
 ehthumbs.db
 Thumbs.db
 allure-results/*
+!allure-results/.gitkeep
+allure-report/*
+!allure-report/.gitkeep
+
