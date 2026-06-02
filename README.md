@@ -18,7 +18,7 @@ Neste projeto, simulamos um sistema de **Gerenciamento de Férias de Funcionári
 
 ## 🛠️ Tecnologias Utilizadas
 
-- **Backend**: Python 3.8+, [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [Pydantic v2](https://docs.pydantic.dev/) para validação de esquemas.
+- **Backend**: Python 3.14, [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [Pydantic v2](https://docs.pydantic.dev/) para validação de esquemas.
 - **Frontend**: HTML5, CSS3 moderno (design elegante com efeitos de vidro/glassmorphism e modo escuro), Vanilla JavaScript (ES6+).
 - **Guia Teórico**: Markdown documentado contendo a teoria completa de engenharia de prompt.
 

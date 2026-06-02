@@ -71,3 +71,4 @@ test_env/
 .Trashes
 ehthumbs.db
 Thumbs.db
+allure-results/*
