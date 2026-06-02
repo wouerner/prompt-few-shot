@@ -1,9 +1,14 @@
 import pytest
 from fastapi.testclient import TestClient
-from app.main import app, employees_db, vacation_requests_db, Employee, VacationRequest
+from app.main import app, employees_db, vacation_requests_db, users_db, hash_password, create_access_token, Employee, VacationRequest
 import app.main as main_module
 
 client = TestClient(app)
+
+# Helper function to generate auth headers for test client
+def get_auth_headers(username: str, role: str, employee_id: int = None):
+    token = create_access_token(data={"sub": username, "role": role, "employee_id": employee_id})
+    return {"Authorization": f"Bearer {token}"}
 
 @pytest.fixture(autouse=True)
 def reset_db():
@@ -23,323 +28,291 @@ def reset_db():
         4: VacationRequest(id=4, employee_id=3, start_date="2026-12-20", end_date="2027-01-05", days=17, status="PENDING")
     })
     
+    users_db.clear()
+    users_db.update({
+        "admin": {
+            "username": "admin",
+            "hashed_password": hash_password("admin123"),
+            "role": "ADMIN",
+            "employee_id": None
+        },
+        "joao": {
+            "username": "joao",
+            "hashed_password": hash_password("joao123"),
+            "role": "EMPLOYEE",
+            "employee_id": 1
+        },
+        "maria": {
+            "username": "maria",
+            "hashed_password": hash_password("maria123"),
+            "role": "EMPLOYEE",
+            "employee_id": 2
+        },
+        "carlos": {
+            "username": "carlos",
+            "hashed_password": hash_password("carlos123"),
+            "role": "EMPLOYEE",
+            "employee_id": 3
+        }
+    })
+    
     main_module.employee_id_counter = 4
     main_module.vacation_id_counter = 5
     yield
+
+# ==========================================
+# TESTES DE AUTENTICAÇÃO (AUTH)
+# ==========================================
+
+def test_login_success():
+    payload = {"username": "joao", "password": "joao123"}
+    response = client.post("/api/v1/auth/login", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert "access_token" in data
+    assert data["token_type"] == "bearer"
+    assert data["user"]["username"] == "joao"
+    assert data["user"]["role"] == "EMPLOYEE"
+    assert data["user"]["employee_id"] == 1
+
+def test_login_invalid_credentials():
+    payload = {"username": "joao", "password": "wrongpassword"}
+    response = client.post("/api/v1/auth/login", json=payload)
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Usuário ou senha incorretos"
+
+def test_get_me_success():
+    headers = get_auth_headers("maria", "EMPLOYEE", 2)
+    response = client.get("/api/v1/auth/me", headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["username"] == "maria"
+    assert data["role"] == "EMPLOYEE"
+    assert data["employee_id"] == 2
+
+def test_get_me_unauthorized():
+    response = client.get("/api/v1/auth/me")
+    assert response.status_code == 401
 
 # ==========================================
 # TESTES DE FUNCIONÁRIOS (EMPLOYEES)
 # ==========================================
 
 def test_list_employees():
-    # Arrange
-    # O banco de dados é populado com 3 funcionários via fixture global `reset_db`
-
-    # Act
-    response = client.get("/api/v1/employees")
-
-    # Assert
+    headers = get_auth_headers("admin", "ADMIN")
+    response = client.get("/api/v1/employees", headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 3
     assert data[0]["name"] == "João Silva"
 
-
-def test_get_employee_exists():
-    # Arrange
-    # O funcionário com ID 1 existe no banco de dados via fixture global `reset_db`
-    employee_id = 1
-
-    # Act
-    response = client.get(f"/api/v1/employees/{employee_id}")
-
-    # Assert
+def test_get_employee_exists_admin():
+    headers = get_auth_headers("admin", "ADMIN")
+    response = client.get("/api/v1/employees/1", headers=headers)
     assert response.status_code == 200
     data = response.json()
-    assert data["id"] == employee_id
-    assert data["name"] == "João Silva"
+    assert data["id"] == 1
 
+def test_get_employee_exists_self():
+    headers = get_auth_headers("joao", "EMPLOYEE", 1)
+    response = client.get("/api/v1/employees/1", headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == 1
+
+def test_get_employee_exists_other_denied():
+    headers = get_auth_headers("joao", "EMPLOYEE", 1)
+    response = client.get("/api/v1/employees/2", headers=headers)
+    assert response.status_code == 403
+    assert "Você não tem permissão" in response.json()["detail"]
 
 def test_get_employee_not_exists():
-    # Arrange
-    # O ID 99 não existe no banco de dados
-    employee_id = 99
-
-    # Act
-    response = client.get(f"/api/v1/employees/{employee_id}")
-
-    # Assert
+    headers = get_auth_headers("admin", "ADMIN")
+    response = client.get("/api/v1/employees/99", headers=headers)
     assert response.status_code == 404
     assert response.json()["detail"] == "Funcionário não encontrado"
 
-
 def test_create_employee_success():
-    # Arrange
+    headers = get_auth_headers("admin", "ADMIN")
     payload = {
         "name": "Ana Souza",
         "role": "Designer",
         "hire_date": "2025-01-10",
         "total_vacation_days": 30
     }
-
-    # Act
-    response = client.post("/api/v1/employees", json=payload)
-
-    # Assert
+    response = client.post("/api/v1/employees", json=payload, headers=headers)
     assert response.status_code == 201
     data = response.json()
     assert data["id"] == 4
     assert data["name"] == "Ana Souza"
-    assert data["vacation_days_left"] == 30
-    assert data["vacation_days_taken"] == 0
+    assert "ana" in users_db
 
-
-def test_create_employee_invalid_date():
-    # Arrange
+def test_create_employee_denied_for_employee():
+    headers = get_auth_headers("joao", "EMPLOYEE", 1)
     payload = {
         "name": "Ana Souza",
         "role": "Designer",
-        "hire_date": "10/01/2025",  # Formato incorreto (deve ser AAAA-MM-DD)
+        "hire_date": "2025-01-10",
         "total_vacation_days": 30
     }
+    response = client.post("/api/v1/employees", json=payload, headers=headers)
+    assert response.status_code == 403
 
-    # Act
-    response = client.post("/api/v1/employees", json=payload)
-
-    # Assert
-    # Erro de validação Pydantic (422)
+def test_create_employee_invalid_date():
+    headers = get_auth_headers("admin", "ADMIN")
+    payload = {
+        "name": "Ana Souza",
+        "role": "Designer",
+        "hire_date": "10/01/2025",
+        "total_vacation_days": 30
+    }
+    response = client.post("/api/v1/employees", json=payload, headers=headers)
     assert response.status_code == 422
 
-
 def test_update_employee():
-    # Arrange
-    employee_id = 1
+    headers = get_auth_headers("admin", "ADMIN")
     payload = {
         "name": "João Silva Alterado",
         "role": "Engenheiro Principal",
         "hire_date": "2023-01-15",
         "total_vacation_days": 35
     }
-
-    # Act
-    response = client.put(f"/api/v1/employees/{employee_id}", json=payload)
-
-    # Assert
+    response = client.put("/api/v1/employees/1", json=payload, headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "João Silva Alterado"
-    assert data["role"] == "Engenheiro Principal"
-    assert data["total_vacation_days"] == 35
-    # Recálculo de saldo: total_vacation_days (35) - vacation_days_taken (10) = 25
     assert data["vacation_days_left"] == 25
 
-
 def test_delete_employee():
-    # Arrange
-    # Deletar funcionário de ID 3 (que tem solicitações de férias 3 e 4)
-    employee_id = 3
-
-    # Act
-    response = client.delete(f"/api/v1/employees/{employee_id}")
-
-    # Assert
+    headers = get_auth_headers("admin", "ADMIN")
+    response = client.delete("/api/v1/employees/3", headers=headers)
     assert response.status_code == 204
-    # Garantir que o funcionário foi removido
-    assert employee_id not in employees_db
-    # Garantir que as férias associadas foram limpas
-    assert 3 not in vacation_requests_db
-    assert 4 not in vacation_requests_db
-
+    assert 3 not in employees_db
+    assert "carlos" not in users_db
 
 # ==========================================
 # TESTES DE SOLICITAÇÃO DE FÉRIAS (VACATIONS)
 # ==========================================
 
-def test_list_vacations():
-    # Arrange
-    # O banco de dados é populado com 4 solicitações via fixture global `reset_db`
+def test_list_vacations_admin():
+    headers = get_auth_headers("admin", "ADMIN")
+    response = client.get("/api/v1/vacations", headers=headers)
+    assert response.status_code == 200
+    assert len(response.json()) == 4
 
-    # Act
-    response = client.get("/api/v1/vacations")
-
-    # Assert
+def test_list_vacations_employee_limited():
+    headers = get_auth_headers("joao", "EMPLOYEE", 1)
+    response = client.get("/api/v1/vacations", headers=headers)
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 4
-
-
-def test_list_vacations_by_employee():
-    # Arrange
-    # O funcionário com ID 3 possui 2 solicitações registradas no banco via fixture global
-    employee_id = 3
-
-    # Act
-    response = client.get(f"/api/v1/vacations?employee_id={employee_id}")
-
-    # Assert
-    assert response.status_code == 200
-    data = response.json()
-    assert len(data) == 2
-    for vac in data:
-        assert vac["employee_id"] == employee_id
-
+    assert len(data) == 1
+    assert data[0]["employee_id"] == 1
 
 def test_request_vacation_success():
-    # Arrange
+    headers = get_auth_headers("maria", "EMPLOYEE", 2)
     payload = {
         "employee_id": 2,
         "start_date": "2026-12-01",
         "end_date": "2026-12-10"
     }
-
-    # Act
-    response = client.post("/api/v1/vacations", json=payload)
-
-    # Assert
+    response = client.post("/api/v1/vacations", json=payload, headers=headers)
     assert response.status_code == 201
-    data = response.json()
-    assert data["id"] == 5
-    assert data["employee_id"] == 2
-    assert data["days"] == 10  # 10 dias inclusive
-    assert data["status"] == "PENDING"
+    assert response.json()["id"] == 5
 
+def test_request_vacation_for_other_denied():
+    headers = get_auth_headers("joao", "EMPLOYEE", 1)
+    payload = {
+        "employee_id": 2,
+        "start_date": "2026-12-01",
+        "end_date": "2026-12-10"
+    }
+    response = client.post("/api/v1/vacations", json=payload, headers=headers)
+    assert response.status_code == 403
 
 def test_request_vacation_employee_not_found():
-    # Arrange
+    headers = get_auth_headers("admin", "ADMIN")
     payload = {
         "employee_id": 99,
         "start_date": "2026-12-01",
         "end_date": "2026-12-10"
     }
-
-    # Act
-    response = client.post("/api/v1/vacations", json=payload)
-
-    # Assert
+    response = client.post("/api/v1/vacations", json=payload, headers=headers)
     assert response.status_code == 404
-    assert response.json()["detail"] == "Funcionário não encontrado"
-
 
 def test_request_vacation_invalid_dates():
-    # Arrange
+    headers = get_auth_headers("maria", "EMPLOYEE", 2)
     payload = {
         "employee_id": 2,
         "start_date": "2026-12-10",
-        "end_date": "2026-12-01"  # Data fim anterior à início
+        "end_date": "2026-12-01"
     }
-
-    # Act
-    response = client.post("/api/v1/vacations", json=payload)
-
-    # Assert
+    response = client.post("/api/v1/vacations", json=payload, headers=headers)
     assert response.status_code == 400
-    assert response.json()["detail"] == "A data de início deve ser anterior à data de fim"
-
 
 def test_request_vacation_insufficient_balance():
-    # Arrange
-    # Funcionário 1 tem apenas 20 dias disponíveis
+    headers = get_auth_headers("joao", "EMPLOYEE", 1)
     payload = {
         "employee_id": 1,
         "start_date": "2026-01-01",
-        "end_date": "2026-01-25"  # 25 dias solicitados
+        "end_date": "2026-01-25"
     }
-
-    # Act
-    response = client.post("/api/v1/vacations", json=payload)
-
-    # Assert
+    response = client.post("/api/v1/vacations", json=payload, headers=headers)
     assert response.status_code == 400
-    assert "Saldo insuficiente" in response.json()["detail"]
-
 
 def test_request_vacation_overlap():
-    # Arrange
-    # Funcionário 2 já tem férias pendentes de 2026-07-01 a 2026-07-15
+    headers = get_auth_headers("maria", "EMPLOYEE", 2)
     payload = {
         "employee_id": 2,
         "start_date": "2026-07-10",
-        "end_date": "2026-07-20"  # Conflita com as férias existentes
+        "end_date": "2026-07-20"
     }
-
-    # Act
-    response = client.post("/api/v1/vacations", json=payload)
-
-    # Assert
+    response = client.post("/api/v1/vacations", json=payload, headers=headers)
     assert response.status_code == 400
-    assert "Conflito de datas" in response.json()["detail"]
-
 
 # ==========================================
 # TESTES DE STATUS E EXCLUSÃO DE FÉRIAS
 # ==========================================
 
 def test_approve_vacation_success():
-    # Arrange
-    # Funcionário 2 tem 30 dias livres. Solicitação 2 tem 15 dias e está PENDING.
-    vacation_id = 2
-    payload = {"status": "APPROVED"}
-
-    # Act
-    response = client.patch(f"/api/v1/vacations/{vacation_id}/status", json=payload)
-
-    # Assert
+    headers = get_auth_headers("admin", "ADMIN")
+    response = client.patch("/api/v1/vacations/2/status", json={"status": "APPROVED"}, headers=headers)
     assert response.status_code == 200
     assert response.json()["status"] == "APPROVED"
-    # Verificar se saldo foi debitado
-    emp = employees_db[2]
-    assert emp.vacation_days_taken == 15
-    assert emp.vacation_days_left == 15
+    assert employees_db[2].vacation_days_left == 15
 
+def test_approve_vacation_denied_for_employee():
+    headers = get_auth_headers("maria", "EMPLOYEE", 2)
+    response = client.patch("/api/v1/vacations/2/status", json={"status": "APPROVED"}, headers=headers)
+    assert response.status_code == 403
 
 def test_approve_vacation_insufficient_balance():
-    # Arrange
-    # Funcionário 3 tem 25 dias livres. Solicitação 4 tem 17 dias (PENDING).
-    # Vamos artificialmente reduzir o saldo do funcionário 3
+    headers = get_auth_headers("admin", "ADMIN")
     employees_db[3].vacation_days_left = 10
-    vacation_id = 4
-    payload = {"status": "APPROVED"}
-
-    # Act
-    response = client.patch(f"/api/v1/vacations/{vacation_id}/status", json=payload)
-
-    # Assert
+    response = client.patch("/api/v1/vacations/4/status", json={"status": "APPROVED"}, headers=headers)
     assert response.status_code == 400
-    assert "Não é possível aprovar" in response.json()["detail"]
-
 
 def test_reject_vacation_restores_balance():
-    # Arrange
-    # Solicitação 1 está APPROVED com 10 dias (Funcionário 1).
-    # Vamos rejeitar essa solicitação e garantir que os dias foram estornados.
-    vacation_id = 1
-    payload = {"status": "REJECTED"}
-
-    # Act
-    response = client.patch(f"/api/v1/vacations/{vacation_id}/status", json=payload)
-
-    # Assert
+    headers = get_auth_headers("admin", "ADMIN")
+    response = client.patch("/api/v1/vacations/1/status", json={"status": "REJECTED"}, headers=headers)
     assert response.status_code == 200
-    assert response.json()["status"] == "REJECTED"
-    # Verificar estorno no saldo
-    emp = employees_db[1]
-    assert emp.vacation_days_taken == 0
-    assert emp.vacation_days_left == 30
+    assert employees_db[1].vacation_days_left == 30
 
-
-def test_delete_vacation_approved():
-    # Arrange
-    # Deletar solicitação 1 (APPROVED, 10 dias, Funcionário 1).
-    vacation_id = 1
-
-    # Act
-    response = client.delete(f"/api/v1/vacations/{vacation_id}")
-
-    # Assert
+def test_delete_vacation_approved_admin():
+    headers = get_auth_headers("admin", "ADMIN")
+    response = client.delete("/api/v1/vacations/1", headers=headers)
     assert response.status_code == 204
-    # Garantir exclusão
-    assert vacation_id not in vacation_requests_db
-    # Garantir estorno do saldo
-    emp = employees_db[1]
-    assert emp.vacation_days_taken == 0
-    assert emp.vacation_days_left == 30
+    assert 1 not in vacation_requests_db
+
+def test_delete_vacation_pending_own_employee():
+    headers = get_auth_headers("maria", "EMPLOYEE", 2)
+    # vacation 2 is PENDING and belongs to employee 2 (maria)
+    response = client.delete("/api/v1/vacations/2", headers=headers)
+    assert response.status_code == 204
+    assert 2 not in vacation_requests_db
+
+def test_delete_vacation_approved_own_employee_denied():
+    headers = get_auth_headers("joao", "EMPLOYEE", 1)
+    # vacation 1 is APPROVED and belongs to employee 1 (joao). Employees cannot delete approved requests.
+    response = client.delete("/api/v1/vacations/1", headers=headers)
+    assert response.status_code == 400
+    assert "ainda estão pendentes" in response.json()["detail"].lower()

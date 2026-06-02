@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from app.main import app, employees_db, vacation_requests_db, Employee, VacationRequest
+from app.main import app, employees_db, vacation_requests_db, users_db, hash_password, create_access_token, Employee, VacationRequest
 import app.main as main_module
 
 def before_scenario(context, scenario):
@@ -19,8 +19,43 @@ def before_scenario(context, scenario):
         4: VacationRequest(id=4, employee_id=3, start_date="2026-12-20", end_date="2027-01-05", days=17, status="PENDING")
     })
     
+    users_db.clear()
+    users_db.update({
+        "admin": {
+            "username": "admin",
+            "hashed_password": hash_password("admin123"),
+            "role": "ADMIN",
+            "employee_id": None
+        },
+        "joao": {
+            "username": "joao",
+            "hashed_password": hash_password("joao123"),
+            "role": "EMPLOYEE",
+            "employee_id": 1
+        },
+        "maria": {
+            "username": "maria",
+            "hashed_password": hash_password("maria123"),
+            "role": "EMPLOYEE",
+            "employee_id": 2
+        },
+        "carlos": {
+            "username": "carlos",
+            "hashed_password": hash_password("carlos123"),
+            "role": "EMPLOYEE",
+            "employee_id": 3
+        }
+    })
+    
     main_module.employee_id_counter = 4
     main_module.vacation_id_counter = 5
     
     # Colocar o TestClient no contexto para uso nos steps
     context.client = TestClient(app)
+    
+    # Helper para autenticação durante o teste BDD
+    def auth_as(username: str, role: str, employee_id: int = None):
+        token = create_access_token(data={"sub": username, "role": role, "employee_id": employee_id})
+        context.client.headers.update({"Authorization": f"Bearer {token}"})
+        
+    context.auth_as = auth_as

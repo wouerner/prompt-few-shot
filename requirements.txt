@@ -6,3 +6,5 @@ httpx>=0.24.0
 behave>=1.2.6
 allure-pytest>=2.13.2
 allure-behave>=2.13.2
+pyjwt>=2.8.0
+cryptography>=42.0.0

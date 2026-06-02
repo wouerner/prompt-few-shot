@@ -1,11 +1,15 @@
 import os
 import math
-from datetime import datetime, date
+from datetime import datetime, date, timedelta, timezone
 from typing import List, Dict, Optional, Literal
+import jwt
+import hashlib
+import secrets
 from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, field_validator
 
 app = FastAPI(
@@ -75,6 +79,93 @@ class VacationRequest(VacationRequestBase):
 class StatusUpdate(BaseModel):
     status: Literal["APPROVED", "REJECTED"] = Field(..., examples=["APPROVED"])
 
+class LoginRequest(BaseModel):
+    username: str = Field(..., examples=["joao"])
+    password: str = Field(..., examples=["joao123"])
+
+class UserResponse(BaseModel):
+    username: str
+    role: Literal["ADMIN", "EMPLOYEE"]
+    employee_id: Optional[int] = None
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserResponse
+
+# ==========================================
+# SEGURANÇA E AUTENTICAÇÃO (JWT & HASHING)
+# ==========================================
+
+SECRET_KEY = "supersecretkeyforvacationsapp-at-least-32-bytes"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+security = HTTPBearer()
+
+def hash_password(password: str) -> str:
+    # Usando 10.000 iterações para os testes rodarem rápido
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 10000)
+    return f"{salt}${dk.hex()}"
+
+def verify_password(password: str, hashed: str) -> bool:
+    try:
+        salt, hash_hex = hashed.split('$')
+        dk = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 10000)
+        return dk.hex() == hash_hex
+    except Exception:
+        return False
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token de autenticação inválido ou ausente",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        user = users_db.get(username)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuário não encontrado",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        return user
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token expirado",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+def get_admin_user(current_user: dict = Depends(get_current_user)) -> dict:
+    if current_user["role"] != "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado. Apenas administradores podem realizar esta ação."
+        )
+    return current_user
+
 # ==========================================
 # BANCO DE DADOS EM MEMÓRIA (SEED DATA)
 # ==========================================
@@ -90,6 +181,33 @@ vacation_requests_db: Dict[int, VacationRequest] = {
     2: VacationRequest(id=2, employee_id=2, start_date="2026-07-01", end_date="2026-07-15", days=15, status="PENDING"),
     3: VacationRequest(id=3, employee_id=3, start_date="2025-04-10", end_date="2025-04-14", days=5, status="APPROVED"),
     4: VacationRequest(id=4, employee_id=3, start_date="2026-12-20", end_date="2027-01-05", days=17, status="PENDING")
+}
+
+users_db: Dict[str, dict] = {
+    "admin": {
+        "username": "admin",
+        "hashed_password": hash_password("admin123"),
+        "role": "ADMIN",
+        "employee_id": None
+    },
+    "joao": {
+        "username": "joao",
+        "hashed_password": hash_password("joao123"),
+        "role": "EMPLOYEE",
+        "employee_id": 1
+    },
+    "maria": {
+        "username": "maria",
+        "hashed_password": hash_password("maria123"),
+        "role": "EMPLOYEE",
+        "employee_id": 2
+    },
+    "carlos": {
+        "username": "carlos",
+        "hashed_password": hash_password("carlos123"),
+        "role": "EMPLOYEE",
+        "employee_id": 3
+    }
 }
 
 employee_id_counter = 4
@@ -109,23 +227,62 @@ def dates_overlap(start1_str: str, end1_str: str, start2_str: str, end2_str: str
     return start1 <= end2 and start2 <= end1
 
 # ==========================================
+# ENDPOINTS DA API: AUTENTICAÇÃO
+# ==========================================
+
+@app.post("/api/v1/auth/login", response_model=LoginResponse, tags=["Autenticação"])
+def login(req: LoginRequest):
+    user = users_db.get(req.username)
+    if not user or not verify_password(req.password, user["hashed_password"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuário ou senha incorretos"
+        )
+    
+    access_token = create_access_token(
+        data={"sub": user["username"], "role": user["role"], "employee_id": user["employee_id"]}
+    )
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "username": user["username"],
+            "role": user["role"],
+            "employee_id": user["employee_id"]
+        }
+    }
+
+@app.get("/api/v1/auth/me", response_model=UserResponse, tags=["Autenticação"])
+def get_me(current_user: dict = Depends(get_current_user)):
+    return {
+        "username": current_user["username"],
+        "role": current_user["role"],
+        "employee_id": current_user["employee_id"]
+    }
+
+# ==========================================
 # ENDPOINTS DA API: FUNCIONÁRIOS
 # ==========================================
 
 @app.get("/api/v1/employees", response_model=List[Employee], tags=["Funcionários"])
-def list_employees():
+def list_employees(current_user: dict = Depends(get_current_user)):
     """Retorna a lista de todos os funcionários cadastrados."""
     return list(employees_db.values())
 
 @app.get("/api/v1/employees/{employee_id}", response_model=Employee, tags=["Funcionários"])
-def get_employee(employee_id: int):
+def get_employee(employee_id: int, current_user: dict = Depends(get_current_user)):
     """Retorna os dados de um funcionário específico pelo seu ID."""
+    if current_user["role"] != "ADMIN" and current_user["employee_id"] != employee_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não tem permissão para visualizar os dados de outro funcionário."
+        )
     if employee_id not in employees_db:
         raise HTTPException(status_code=404, detail="Funcionário não encontrado")
     return employees_db[employee_id]
 
 @app.post("/api/v1/employees", response_model=Employee, status_code=status.HTTP_201_CREATED, tags=["Funcionários"])
-def create_employee(employee_in: EmployeeCreate):
+def create_employee(employee_in: EmployeeCreate, current_user: dict = Depends(get_admin_user)):
     """Cadastra um novo funcionário e calcula o saldo de férias inicial."""
     global employee_id_counter
     emp_id = employee_id_counter
@@ -141,10 +298,26 @@ def create_employee(employee_in: EmployeeCreate):
         vacation_days_left=employee_in.total_vacation_days
     )
     employees_db[emp_id] = new_employee
+    
+    # Auto-gerar credenciais: username é o primeiro nome em minúsculo (limpo)
+    first_name = employee_in.name.split()[0].lower()
+    username = first_name
+    counter = 1
+    while username in users_db:
+        username = f"{first_name}{counter}"
+        counter += 1
+        
+    users_db[username] = {
+        "username": username,
+        "hashed_password": hash_password("123456"),
+        "role": "EMPLOYEE",
+        "employee_id": emp_id
+    }
+    
     return new_employee
 
 @app.put("/api/v1/employees/{employee_id}", response_model=Employee, tags=["Funcionários"])
-def update_employee(employee_id: int, employee_in: EmployeeCreate):
+def update_employee(employee_id: int, employee_in: EmployeeCreate, current_user: dict = Depends(get_admin_user)):
     """Atualiza as informações de um funcionário específico."""
     if employee_id not in employees_db:
         raise HTTPException(status_code=404, detail="Funcionário não encontrado")
@@ -160,7 +333,7 @@ def update_employee(employee_id: int, employee_in: EmployeeCreate):
     return emp
 
 @app.delete("/api/v1/employees/{employee_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Funcionários"])
-def delete_employee(employee_id: int):
+def delete_employee(employee_id: int, current_user: dict = Depends(get_admin_user)):
     """Remove um funcionário e todas as suas solicitações de férias."""
     if employee_id not in employees_db:
         raise HTTPException(status_code=404, detail="Funcionário não encontrado")
@@ -173,6 +346,11 @@ def delete_employee(employee_id: int):
     for vid in to_delete:
         del vacation_requests_db[vid]
         
+    # Remove from users_db
+    users_to_delete = [uname for uname, u in users_db.items() if u["employee_id"] == employee_id]
+    for uname in users_to_delete:
+        del users_db[uname]
+        
     return None
 
 # ==========================================
@@ -180,19 +358,31 @@ def delete_employee(employee_id: int):
 # ==========================================
 
 @app.get("/api/v1/vacations", response_model=List[VacationRequest], tags=["Férias"])
-def list_vacations(employee_id: Optional[int] = None):
+def list_vacations(employee_id: Optional[int] = None, current_user: dict = Depends(get_current_user)):
     """Retorna todas as solicitações de férias, podendo filtrar por funcionário."""
-    if employee_id:
-        return [v for v in vacation_requests_db.values() if v.employee_id == employee_id]
-    return list(vacation_requests_db.values())
+    if current_user["role"] == "ADMIN":
+        if employee_id:
+            return [v for v in vacation_requests_db.values() if v.employee_id == employee_id]
+        return list(vacation_requests_db.values())
+    else:
+        # EMPLOYEE só vê as próprias férias
+        emp_id = current_user["employee_id"]
+        return [v for v in vacation_requests_db.values() if v.employee_id == emp_id]
 
 @app.post("/api/v1/vacations", response_model=VacationRequest, status_code=status.HTTP_201_CREATED, tags=["Férias"])
-def request_vacation(req: VacationRequestCreate):
+def request_vacation(req: VacationRequestCreate, current_user: dict = Depends(get_current_user)):
     """
     Solicita férias para um funcionário.
     Aplica validações de dias disponíveis e conflitos de datas.
     """
     global vacation_id_counter
+    
+    # Regra de autorização: funcionário só pode solicitar para si mesmo
+    if current_user["role"] != "ADMIN" and current_user["employee_id"] != req.employee_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Você não pode solicitar férias para outro funcionário."
+        )
     
     # 1. Verifica se funcionário existe
     if req.employee_id not in employees_db:
@@ -241,7 +431,7 @@ def request_vacation(req: VacationRequestCreate):
     return new_request
 
 @app.patch("/api/v1/vacations/{vacation_id}/status", response_model=VacationRequest, tags=["Férias"])
-def update_vacation_status(vacation_id: int, status_update: StatusUpdate):
+def update_vacation_status(vacation_id: int, status_update: StatusUpdate, current_user: dict = Depends(get_admin_user)):
     """
     Aprova ou rejeita uma solicitação de férias.
     Ao aprovar, debita automaticamente os dias do saldo do funcionário.
@@ -278,7 +468,7 @@ def update_vacation_status(vacation_id: int, status_update: StatusUpdate):
     return req
 
 @app.delete("/api/v1/vacations/{vacation_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Férias"])
-def delete_vacation(vacation_id: int):
+def delete_vacation(vacation_id: int, current_user: dict = Depends(get_current_user)):
     """Cancela uma solicitação de férias. Restaura o saldo de dias do funcionário se já estivesse aprovada."""
     if vacation_id not in vacation_requests_db:
         raise HTTPException(status_code=404, detail="Solicitação de férias não encontrada")
@@ -286,6 +476,19 @@ def delete_vacation(vacation_id: int):
     req = vacation_requests_db[vacation_id]
     emp = employees_db[req.employee_id]
     
+    # Regra de autorização: funcionário só pode cancelar suas próprias férias se estiverem PENDENTES
+    if current_user["role"] != "ADMIN":
+        if current_user["employee_id"] != req.employee_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Você não tem permissão para cancelar as férias de outro funcionário."
+            )
+        if req.status != "PENDING":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Você só pode cancelar solicitações de férias que ainda estão pendentes."
+            )
+              
     # Se estava aprovada, devolve os dias ao funcionário
     if req.status == "APPROVED":
         emp.vacation_days_taken = max(0, emp.vacation_days_taken - req.days)

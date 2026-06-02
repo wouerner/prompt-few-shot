@@ -17,7 +17,35 @@
     <div class="glass-bg-blur"></div>
     <div class="glass-bg-blur-secondary"></div>
 
-    <div class="app-container">
+    <!-- Login Page -->
+    <div id="login-page" class="login-page-container">
+        <div class="card glass-card login-card">
+            <div class="login-header">
+                <div class="logo-icon"><i class="fa-solid fa-lock"></i></div>
+                <h2>Acesso ao <span class="gradient-text">Sistema</span></h2>
+                <p class="subtitle">Faça login para gerenciar suas férias</p>
+            </div>
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="login-username"><i class="fa-solid fa-user"></i> Usuário</label>
+                    <input type="text" id="login-username" class="form-control" required placeholder="Ex: admin, joao, maria...">
+                </div>
+                <div class="form-group">
+                    <label for="login-password"><i class="fa-solid fa-key"></i> Senha</label>
+                    <input type="password" id="login-password" class="form-control" required placeholder="Sua senha">
+                </div>
+                <div id="login-error" class="error-msg-box" style="display: none;"></div>
+                <button type="submit" class="btn btn-primary btn-block" id="btn-submit-login">
+                    Entrar <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                </button>
+            </form>
+            <div class="login-footer">
+                <p>Usuários de teste: <code>admin</code>/<code>admin123</code> ou <code>joao</code>/<code>joao123</code></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container" id="app-page" style="display: none;">
         <!-- Header -->
         <header class="app-header">
             <div class="logo-area">
@@ -28,9 +56,16 @@
                 </div>
             </div>
             <div class="header-actions">
+                <div class="user-info-badge" id="header-user-info">
+                    <span id="user-display-name">Carregando...</span>
+                    <span class="badge badge-purple" id="user-display-role">ADMIN</span>
+                </div>
                 <a href="/docs" target="_blank" class="btn btn-secondary btn-sm" id="btn-swagger">
-                    <i class="fa-solid fa-code"></i> Swagger OpenAPI
+                    <i class="fa-solid fa-code"></i> Swagger
                 </a>
+                <button class="btn btn-secondary btn-sm" onclick="handleLogout()" id="btn-logout" style="border-color: rgba(239, 68, 68, 0.4); color: #ef4444;">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i> Sair
+                </button>
             </div>
         </header>
 
@@ -193,6 +228,7 @@
                                     <option value="3">Listar todos os funcionários da empresa atualmente cadastrados</option>
                                     <option value="4">Aprovar a solicitação de férias de ID número 2</option>
                                     <option value="5">Recusar a solicitação de férias de ID número 4</option>
+                                    <option value="6">Fazer login com usuário joao e senha joao123</option>
                                 </select>
                             </div>
                             
@@ -263,6 +299,7 @@
         <footer class="app-footer-brand">
             <p>Desenvolvido com <i class="fa-solid fa-heart icon-heart"></i> focado em Melhores Práticas de Prompt Engineering & FastAPI.</p>
         </footer>
+    </div>
     </div>
 
     <!-- MODAL: ADD EMPLOYEE -->

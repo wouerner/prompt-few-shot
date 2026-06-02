@@ -5,21 +5,132 @@ const API_BASE = '/api/v1';
 let employees = [];
 let vacations = [];
 
+// Wrapper para fetch autenticado
+async function authFetch(url, options = {}) {
+    const token = localStorage.getItem('token');
+    if (!options.headers) {
+        options.headers = {};
+    }
+    if (token) {
+        options.headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (!options.headers['Content-Type'] && options.body) {
+        options.headers['Content-Type'] = 'application/json';
+    }
+    
+    const res = await fetch(url, options);
+    
+    if (res.status === 401) {
+        handleLogout();
+        throw new Error("Sessão expirada. Por favor, faça login novamente.");
+    }
+    
+    return res;
+}
+
 // ==========================================
-// INITIALIZATION
+// INITIALIZATION & AUTHENTICATION
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     // Setup Navigation Tabs
     setupTabs();
     
-    // Fetch initial data
-    fetchEmployees();
-    fetchVacations();
+    // Verificar autenticação
+    checkAuth();
     
     // Set default prompt selection in dropdown
     document.getElementById('prompt-input-select').value = '1';
     usePredefinedPrompt();
 });
+
+async function handleLogin(event) {
+    event.preventDefault();
+    const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
+    const errorBox = document.getElementById('login-error');
+    
+    errorBox.style.display = 'none';
+    
+    try {
+        const response = await fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                username: usernameInput.value,
+                password: passwordInput.value
+            })
+        });
+        
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || "Erro de login");
+        }
+        
+        const data = await response.json();
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('username', data.user.username);
+        localStorage.setItem('role', data.user.role);
+        localStorage.setItem('employee_id', data.user.employee_id || '');
+        
+        usernameInput.value = '';
+        passwordInput.value = '';
+        
+        checkAuth();
+    } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.style.display = 'block';
+    }
+}
+
+function handleLogout() {
+    localStorage.clear();
+    checkAuth();
+}
+
+function checkAuth() {
+    const token = localStorage.getItem('token');
+    const loginPage = document.getElementById('login-page');
+    const appPage = document.getElementById('app-page');
+    
+    if (token) {
+        loginPage.style.display = 'none';
+        appPage.style.display = 'flex';
+        
+        const username = localStorage.getItem('username');
+        const role = localStorage.getItem('role');
+        document.getElementById('user-display-name').textContent = username;
+        
+        const roleBadge = document.getElementById('user-display-role');
+        roleBadge.textContent = role === 'ADMIN' ? 'GESTOR' : 'COLABORADOR';
+        if (role === 'ADMIN') {
+            roleBadge.className = 'badge badge-purple';
+            roleBadge.style.background = '';
+            roleBadge.style.color = '';
+            roleBadge.style.border = '';
+        } else {
+            roleBadge.className = 'badge badge-cyan';
+            roleBadge.style.background = 'var(--accent-cyan-glow)';
+            roleBadge.style.color = 'var(--accent-cyan)';
+            roleBadge.style.border = '1px solid rgba(6, 182, 212, 0.2)';
+        }
+        
+        // Exibir botão de adicionar funcionário apenas para Admin
+        const btnAddEmp = document.getElementById('btn-add-employee');
+        if (role === 'ADMIN') {
+            btnAddEmp.style.display = 'inline-flex';
+        } else {
+            btnAddEmp.style.display = 'none';
+        }
+        
+        fetchEmployees();
+        fetchVacations();
+    } else {
+        loginPage.style.display = 'flex';
+        appPage.style.display = 'none';
+    }
+}
 
 // ==========================================
 // TABS & UI NAVIGATION
@@ -58,7 +169,7 @@ function setupTabs() {
 // ==========================================
 async function fetchEmployees() {
     try {
-        const res = await fetch(`${API_BASE}/employees`);
+        const res = await authFetch(`${API_BASE}/employees`);
         if (!res.ok) throw new Error("Erro ao carregar funcionários");
         employees = await res.json();
         
@@ -71,7 +182,7 @@ async function fetchEmployees() {
 
 async function fetchVacations() {
     try {
-        const res = await fetch(`${API_BASE}/vacations`);
+        const res = await authFetch(`${API_BASE}/vacations`);
         if (!res.ok) throw new Error("Erro ao carregar férias");
         vacations = await res.json();
         
@@ -90,8 +201,16 @@ function renderEmployeesTable() {
         return;
     }
 
+    const role = localStorage.getItem('role');
+
     employees.forEach(emp => {
         const tr = document.createElement('tr');
+        const deleteButton = role === 'ADMIN'
+            ? `<button class="btn-icon-only btn-danger-action" onclick="deleteEmployee(${emp.id})" title="Excluir funcionário">
+                   <i class="fa-solid fa-trash"></i>
+               </button>`
+            : `<span style="color: var(--text-muted); font-size: 0.8rem;">-</span>`;
+
         tr.innerHTML = `
             <td><span class="badge badge-purple">#${emp.id}</span></td>
             <td>
@@ -103,9 +222,7 @@ function renderEmployeesTable() {
                 <span class="badge badge-purple">${emp.vacation_days_left} / ${emp.total_vacation_days} dias</span>
             </td>
             <td>
-                <button class="btn-icon-only btn-danger-action" onclick="deleteEmployee(${emp.id})" title="Excluir funcionário">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
+                ${deleteButton}
             </td>
         `;
         tbody.appendChild(tr);
@@ -120,6 +237,8 @@ function renderVacationsTable() {
         tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Nenhuma solicitação de férias registrada.</td></tr>`;
         return;
     }
+
+    const role = localStorage.getItem('role');
 
     vacations.forEach(vac => {
         const employee = employees.find(e => e.id === vac.employee_id);
@@ -138,22 +257,36 @@ function renderVacationsTable() {
         // Actions
         let actionButtons = '';
         if (vac.status === 'PENDING') {
-            actionButtons = `
-                <div class="actions-cell">
-                    <button class="btn-icon-only btn-success-action" onclick="updateVacationStatus(${vac.id}, 'APPROVED')" title="Aprovar">
-                        <i class="fa-solid fa-check"></i>
+            if (role === 'ADMIN') {
+                actionButtons = `
+                    <div class="actions-cell">
+                        <button class="btn-icon-only btn-success-action" onclick="updateVacationStatus(${vac.id}, 'APPROVED')" title="Aprovar">
+                            <i class="fa-solid fa-check"></i>
+                        </button>
+                        <button class="btn-icon-only btn-danger-action" onclick="updateVacationStatus(${vac.id}, 'REJECTED')" title="Rejeitar">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                `;
+            } else {
+                // Employee can cancel their own pending request
+                actionButtons = `
+                    <button class="btn-icon-only btn-danger-action" onclick="deleteVacation(${vac.id})" title="Cancelar solicitação">
+                        <i class="fa-solid fa-trash"></i>
                     </button>
-                    <button class="btn-icon-only btn-danger-action" onclick="updateVacationStatus(${vac.id}, 'REJECTED')" title="Rejeitar">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                </div>
-            `;
+                `;
+            }
         } else {
-            actionButtons = `
-                <button class="btn-icon-only btn-danger-action" onclick="deleteVacation(${vac.id})" title="Excluir solicitação e restaurar dias">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
-            `;
+            // Approved or Rejected
+            if (role === 'ADMIN') {
+                actionButtons = `
+                    <button class="btn-icon-only btn-danger-action" onclick="deleteVacation(${vac.id})" title="Excluir solicitação e restaurar dias">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                `;
+            } else {
+                actionButtons = `<span style="color: var(--text-muted); font-size: 0.85rem;">-</span>`;
+            }
         }
 
         const tr = document.createElement('tr');
@@ -175,12 +308,22 @@ function populateEmployeeSelects() {
     const select = document.getElementById('vac-employee-id');
     select.innerHTML = '<option value="" disabled selected>Escolha um funcionário...</option>';
     
+    const role = localStorage.getItem('role');
+    const userEmpId = localStorage.getItem('employee_id');
+
     employees.forEach(emp => {
         const opt = document.createElement('option');
         opt.value = emp.id;
         opt.textContent = `${emp.name} (ID: ${emp.id} | Saldo: ${emp.vacation_days_left} dias)`;
         select.appendChild(opt);
     });
+
+    if (role === 'EMPLOYEE' && userEmpId) {
+        select.value = parseInt(userEmpId);
+        select.disabled = true;
+    } else {
+        select.disabled = false;
+    }
 }
 
 // ==========================================
@@ -195,9 +338,8 @@ async function submitEmployeeForm(event) {
     const total_vacation_days = parseInt(document.getElementById('emp-vacation-days').value);
     
     try {
-        const res = await fetch(`${API_BASE}/employees`, {
+        const res = await authFetch(`${API_BASE}/employees`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, role, hire_date, total_vacation_days })
         });
         
@@ -218,7 +360,9 @@ async function submitEmployeeForm(event) {
 async function submitVacationForm(event) {
     event.preventDefault();
     
-    const employee_id = parseInt(document.getElementById('vac-employee-id').value);
+    // Se estiver desativado, o valor ainda precisa ser enviado
+    const select = document.getElementById('vac-employee-id');
+    const employee_id = parseInt(select.value);
     const start_date = document.getElementById('vac-start-date').value;
     const end_date = document.getElementById('vac-end-date').value;
     
@@ -226,9 +370,8 @@ async function submitVacationForm(event) {
     errBox.style.display = 'none';
     
     try {
-        const res = await fetch(`${API_BASE}/vacations`, {
+        const res = await authFetch(`${API_BASE}/vacations`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ employee_id, start_date, end_date })
         });
         
@@ -254,9 +397,8 @@ async function submitVacationForm(event) {
 
 async function updateVacationStatus(id, newStatus) {
     try {
-        const res = await fetch(`${API_BASE}/vacations/${id}/status`, {
+        const res = await authFetch(`${API_BASE}/vacations/${id}/status`, {
             method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: newStatus })
         });
         
@@ -276,7 +418,7 @@ async function deleteEmployee(id) {
     if (!confirm("Tem certeza que deseja excluir este funcionário? Isso removerá todas as suas solicitações de férias associadas!")) return;
     
     try {
-        const res = await fetch(`${API_BASE}/employees/${id}`, {
+        const res = await authFetch(`${API_BASE}/employees/${id}`, {
             method: 'DELETE'
         });
         
@@ -293,7 +435,7 @@ async function deleteVacation(id) {
     if (!confirm("Tem certeza que deseja cancelar esta solicitação de férias?")) return;
     
     try {
-        const res = await fetch(`${API_BASE}/vacations/${id}`, {
+        const res = await authFetch(`${API_BASE}/vacations/${id}`, {
             method: 'DELETE'
         });
         
@@ -317,11 +459,13 @@ function openModal(id) {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('vac-start-date').min = today;
         document.getElementById('vac-end-date').min = today;
+        populateEmployeeSelects();
     } else if (id === 'employee-modal') {
         document.getElementById('emp-hire-date').value = new Date().toISOString().split('T')[0];
     }
 }
 
+// Para fechar modal e limpar campos de erro
 function closeModal(id) {
     document.getElementById(id).classList.remove('active');
     if (id === 'vacation-modal') {
@@ -345,7 +489,7 @@ function usePredefinedPrompt() {
     }
 }
 
-// Construct the ultimate few-shot prompt template
+// Construct the few-shot prompt template
 function generateFewShotPrompt() {
     const input = document.getElementById('prompt-custom-input').value.trim();
     if (!input) {
@@ -376,7 +520,11 @@ Regras de Saída:
 4. Aprovar ou Rejeitar solicitação de férias:
    - Método: PATCH
    - Rota: /api/v1/vacations/{vacation_id}/status
-   - Payload: { "status": "APPROVED" | "REJECTED" }`;
+   - Payload: { "status": "APPROVED" | "REJECTED" }
+5. Autenticar usuário:
+   - Método: POST
+   - Rota: /api/v1/auth/login
+   - Payload: { "username": "string", "password": "string" }`;
 
     const fewShotExamples = 
 `EXEMPLOS DE PROCESSAMENTO (FEW-SHOT):
@@ -409,6 +557,18 @@ Saída:
 }
 
 ---
+Entrada: Fazer login com usuário joao e senha joao123
+Saída:
+{
+  "method": "POST",
+  "url": "/api/v1/auth/login",
+  "body": {
+    "username": "joao",
+    "password": "joao123"
+  }
+}
+
+---
 Entrada: Aprovar a solicitação de férias de ID número 7 imediatamente
 Saída:
 {
@@ -435,7 +595,6 @@ Saída:`;
 
     document.getElementById('few-shot-prompt-code').textContent = promptOutput;
     
-    // Highlight the card header or visual cue
     const outCard = document.getElementById('output-prompt-card');
     outCard.style.boxShadow = '0 0 25px rgba(139, 92, 246, 0.4)';
     setTimeout(() => {
@@ -480,42 +639,58 @@ function simulateLLMResponse() {
     
     const userInput = document.getElementById('prompt-custom-input').value.trim();
     
-    // Run an intelligent parser simulating standard LLM reasoning based on our Few-Shot examples
     const result = parseInputNLP(userInput);
     
-    // Output simulated LLM response
     const outputCodeElement = document.getElementById('simulation-output-raw');
     outputCodeElement.textContent = JSON.stringify(result, null, 2);
     
-    // Execute call against real API
     executeSimulatedCall(result);
 }
 
-// Smart local parsing engine mimicking LLM output for our specific vacation model
+// Parser inteligente simulando a IA
 function parseInputNLP(text) {
     const lowercase = text.toLowerCase();
     
-    // 1. Check for Employee Registration
+    if (lowercase.includes('login') || lowercase.includes('logar') || lowercase.includes('autenticar')) {
+        let username = "admin";
+        let password = "admin123";
+        
+        const userMatch = text.match(/(?:usuário|usuario|com)\s+([a-zA-Z0-9]+)/i);
+        if (userMatch) {
+            username = userMatch[1].toLowerCase();
+        }
+        
+        const passMatch = text.match(/(?:senha|password)\s+([a-zA-Z0-9]+)/i);
+        if (passMatch) {
+            password = passMatch[1];
+        }
+        
+        return {
+            method: "POST",
+            url: "/api/v1/auth/login",
+            body: {
+                username: username,
+                password: password
+            }
+        };
+    }
+    
     if (lowercase.includes('cadastrar') || lowercase.includes('criar') || lowercase.includes('adicionar') || lowercase.includes('novo funcionário')) {
-        // Attempt to extract Name
-        let name = "Ana Souza"; // default fallback matching seed data option
+        let name = "Ana Souza";
         const nameMatch = text.match(/(?:chamada|chamado|nome)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
         if (nameMatch) {
             name = nameMatch[1];
         } else {
-            // regex for Ana Souza or others
             const candidate = text.match(/(?:funcionária|funcionário)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/);
             if (candidate) name = candidate[1];
         }
 
-        // Attempt to extract Role
         let role = "Engenheira de Software";
         const roleMatch = text.match(/(?:como|cargo de)\s+([A-Za-zÀ-ÿ\s]+?)(?:\s+contratada|\s+contratado|\s+em|\s+com|\.|$)/i);
         if (roleMatch) {
             role = roleMatch[1].trim();
         }
 
-        // Attempt to extract Hire Date (YYYY-MM-DD)
         let hireDate = new Date().toISOString().split('T')[0];
         const dateMatch = text.match(/\d{4}-\d{2}-\d{2}/);
         if (dateMatch) {
@@ -534,15 +709,12 @@ function parseInputNLP(text) {
         };
     }
     
-    // 2. Check for Vacation Requests (POST)
     if (lowercase.includes('férias') && (lowercase.includes('solicitar') || lowercase.includes('registrar') || lowercase.includes('pedir') || lowercase.includes('de'))) {
-        // Extract employee ID
         let empId = 1;
         const idMatch = text.match(/(?:id|número)\s+(\d+)/i);
         if (idMatch) {
             empId = parseInt(idMatch[1]);
         } else {
-            // Find by name if possible in local database
             const nameWords = ["joão", "maria", "carlos"];
             for (let word of nameWords) {
                 if (lowercase.includes(word)) {
@@ -552,7 +724,6 @@ function parseInputNLP(text) {
             }
         }
 
-        // Extract dates (find YYYY-MM-DD or parse relative text)
         let startDate = "2026-12-25";
         let endDate = "2027-01-05";
         
@@ -561,8 +732,6 @@ function parseInputNLP(text) {
             startDate = dates[0];
             endDate = dates[1];
         } else {
-            // Search other common pattern like "25 de Dezembro de 2026"
-            // For simplicity, if standard test strings are used, we map them
             if (lowercase.includes("25 de dezembro") && lowercase.includes("2026")) {
                 startDate = "2026-12-25";
             }
@@ -582,9 +751,8 @@ function parseInputNLP(text) {
         };
     }
 
-    // 3. Check for Approval/Rejection (PATCH)
     if (lowercase.includes('aprovar') || lowercase.includes('aceitar') || lowercase.includes('recusar') || lowercase.includes('rejeitar')) {
-        let vacId = 2; // fallback
+        let vacId = 2;
         const idMatch = text.match(/(?:id|número)\s+(\d+)/i);
         if (idMatch) {
             vacId = parseInt(idMatch[1]);
@@ -600,7 +768,6 @@ function parseInputNLP(text) {
         };
     }
 
-    // 4. Check for List (GET)
     if (lowercase.includes('listar') || lowercase.includes('ver') || lowercase.includes('mostrar') || lowercase.includes('buscar')) {
         return {
             method: "GET",
@@ -608,7 +775,6 @@ function parseInputNLP(text) {
         };
     }
 
-    // Default fallback (Unknown query)
     return {
         error: "Não foi possível reconhecer o comando na nossa base Few-Shot local. Tente reescrever no formato dos exemplos."
     };
@@ -637,7 +803,7 @@ async function executeSimulatedCall(simResult) {
             fetchOptions.body = JSON.stringify(body);
         }
 
-        const res = await fetch(url, fetchOptions);
+        const res = await authFetch(url, fetchOptions);
         
         if (res.status === 204) {
             resultElement.textContent = `Status: 204 No Content\n\nChamada executada com sucesso!`;
@@ -652,7 +818,6 @@ async function executeSimulatedCall(simResult) {
             }
         }
         
-        // Refresh dashboard tables automatically
         await fetchEmployees();
         await fetchVacations();
         

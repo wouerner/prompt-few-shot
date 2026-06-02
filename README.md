@@ -115,6 +115,25 @@ graph TB
 
 ---
 
+### 🛠️ Atalhos de Desenvolvimento (Makefile)
+
+Para facilitar a execução dos comandos de inicialização, logs, shell e testes, incluímos um `Makefile` na raiz do projeto. Você pode utilizar os seguintes atalhos no seu terminal local:
+
+| Comando | Descrição |
+| :--- | :--- |
+| `make up` | Inicia todos os serviços Docker em segundo plano (com build) |
+| `make down` | Para e remove todos os containers ativos |
+| `make ps` | Mostra o status de todos os containers |
+| `make logs` | Exibe os logs do container da API em tempo real |
+| `make shell` | Abre um terminal interativo (bash) no container da API |
+| `make test` | Executa todos os testes (Unitários + BDD) |
+| `make test-unit` | Executa apenas os testes unitários (pytest) |
+| `make test-bdd` | Executa apenas os testes BDD (behave) |
+| `make clean` | Limpa todos os resultados e relatórios do Allure |
+| `make help` | Exibe a lista de comandos disponíveis |
+
+---
+
 ### 🚀 Como Iniciar a Aplicação
 
 Siga os passos rápidos abaixo para construir e inicializar os containers:

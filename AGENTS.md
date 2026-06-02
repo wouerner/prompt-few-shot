@@ -11,19 +11,23 @@ This document provides essential, high-signal information for an AI agent workin
 
 ### Setup and Teardown
 
-- **Start all services:** `docker compose up --build`
+- **Start all services:** `make up` (or `docker compose up --build`)
   - This launches the FastAPI backend, the frontend, and the Allure dashboard.
   - The application will be available at `http://localhost:8080`.
   - The backend runs with hot-reloading enabled (`--reload`).
-- **Stop all services:** `docker compose down`
+- **Stop all services:** `make down` (or `docker compose down`)
 
 ### Testing
 
 All tests must be run inside the `app` container. The app container already has all test dependencies installed (pytest, behave, allure adapters).
 
+- **Run all tests (Pytest + BDD):**
+  ```bash
+  make test
+  ```
 - **Run all pytest tests:**
   ```bash
-  docker compose exec app pytest --alluredir=allure-results
+  make test-unit
   ```
 - **Run a single pytest file:**
   ```bash
@@ -35,11 +39,15 @@ All tests must be run inside the `app` container. The app container already has 
   ```
 - **Run BDD tests (behave):**
   ```bash
-  docker compose exec app behave -f allure_behave.formatter:AllureFormatter -o allure-results tests/bdd
+  make test-bdd
   ```
 - **Run a single Behave feature:**
   ```bash
   docker compose exec app behave -f allure_behave.formatter:AllureFormatter -o allure-results tests/bdd/vacation_approval.feature
+  ```
+- **Clean Allure results & reports:**
+  ```bash
+  make clean
   ```
 
 ### Test Reports
