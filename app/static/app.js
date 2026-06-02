@@ -86,16 +86,16 @@ function renderEmployeesTable() {
     tbody.innerHTML = '';
 
     if (employees.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Nenhum funcionário cadastrado.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Nenhum funcionário cadastrado.</td></tr>`;
         return;
     }
 
     employees.forEach(emp => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
+            <td><span class="badge badge-purple">#${emp.id}</span></td>
             <td>
                 <span class="emp-name-tag">${emp.name}</span>
-                <span class="emp-role-tag">ID: ${emp.id}</span>
             </td>
             <td>${emp.role}</td>
             <td>${emp.hire_date}</td>
@@ -117,7 +117,7 @@ function renderVacationsTable() {
     tbody.innerHTML = '';
 
     if (vacations.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Nenhuma solicitação de férias registrada.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Nenhuma solicitação de férias registrada.</td></tr>`;
         return;
     }
 
@@ -158,9 +158,9 @@ function renderVacationsTable() {
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
+            <td><span class="badge badge-purple">#${vac.id}</span></td>
             <td>
                 <span class="emp-name-tag">${employeeName}</span>
-                <span class="emp-role-tag">Solicitação ID: ${vac.id}</span>
             </td>
             <td>${vac.start_date} até ${vac.end_date}</td>
             <td><strong>${vac.days}</strong> dias</td>

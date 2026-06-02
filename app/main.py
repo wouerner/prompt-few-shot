@@ -89,7 +89,7 @@ vacation_requests_db: Dict[int, VacationRequest] = {
     1: VacationRequest(id=1, employee_id=1, start_date="2025-01-02", end_date="2025-01-11", days=10, status="APPROVED"),
     2: VacationRequest(id=2, employee_id=2, start_date="2026-07-01", end_date="2026-07-15", days=15, status="PENDING"),
     3: VacationRequest(id=3, employee_id=3, start_date="2025-04-10", end_date="2025-04-14", days=5, status="APPROVED"),
-    4: VacationRequest(id=3, employee_id=3, start_date="2026-12-20", end_date="2027-01-05", days=17, status="PENDING")
+    4: VacationRequest(id=4, employee_id=3, start_date="2026-12-20", end_date="2027-01-05", days=17, status="PENDING")
 }
 
 employee_id_counter = 4

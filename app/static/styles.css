@@ -116,7 +116,7 @@ body {
    ========================================================================== */
 .app-container {
     width: 100%;
-    max-width: 1280px;
+    max-width: 1600px;
     padding: 2rem;
     display: flex;
     flex-direction: column;
@@ -291,7 +291,7 @@ body {
     gap: 1.5rem;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1200px) {
     .dashboard-grid {
         grid-template-columns: 1.1fr 1.3fr;
     }
@@ -408,6 +408,7 @@ body {
 .actions-cell {
     display: flex;
     gap: 0.5rem;
+    flex-wrap: nowrap;
 }
 
 /* ==========================================================================
@@ -423,6 +424,14 @@ body {
     border-collapse: collapse;
     text-align: left;
     font-size: 0.9rem;
+}
+
+#employees-table {
+    min-width: 440px;
+}
+
+#vacations-table {
+    min-width: 650px;
 }
 
 .custom-table th {
@@ -699,7 +708,7 @@ textarea.form-control {
     gap: 1.5rem;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 1200px) {
     .playground-grid {
         grid-template-columns: 0.9fr 1.5fr;
     }
