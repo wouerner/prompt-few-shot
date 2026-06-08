@@ -128,3 +128,20 @@ def step_impl(context, disponiveis, tirados):
     emp = response.json()
     assert emp["vacation_days_left"] == disponiveis, f"Esperava {disponiveis} dias disponíveis, obteve {emp['vacation_days_left']}"
     assert emp["vacation_days_taken"] == tirados, f"Esperava {tirados} dias tirados, obteve {emp['vacation_days_taken']}"
+
+@when('ele efetua o logout da plataforma')
+def step_impl(context):
+    if hasattr(context, "client") and "Authorization" in context.client.headers:
+        del context.client.headers["Authorization"]
+
+@when('tenta consultar suas solicitações de férias')
+def step_impl(context):
+    # Faz uma requisição GET sem o cabeçalho Authorization
+    context.last_response = context.client.get("/api/v1/vacations")
+
+@then('o sistema deve retornar um erro de não autenticado')
+def step_impl(context):
+    # O FastAPI HTTPBearer pode retornar 401 ou 403 dependendo de como o erro de autorização é capturado.
+    # Vamos validar que o status_code indica falta de autorização (401 ou 403).
+    assert context.last_response.status_code in [401, 403], f"Esperava erro de autenticação (401 ou 403), mas obteve {context.last_response.status_code}"
+

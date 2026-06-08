@@ -26,3 +26,11 @@ Funcionalidade: Fluxo de Aprovação de Férias do Empregado
     Quando o gestor rejeita a solicitação de férias
     Então o status da solicitação deve ser alterado para "REJECTED"
     E o saldo de férias do empregado deve ser estornado para 30 dias disponíveis e 0 dias tirados
+
+  Cenário: Tentativa de verificar férias solicitadas após logout
+    Dado que o empregado de nome "Roberto Santos" possui 30 dias de férias disponíveis
+    Quando ele solicita férias de "2026-12-01" a "2026-12-10"
+    E ele efetua o logout da plataforma
+    E tenta consultar suas solicitações de férias
+    Então o sistema deve retornar um erro de não autenticado
+
