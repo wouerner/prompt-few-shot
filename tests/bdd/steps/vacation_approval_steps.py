@@ -1,4 +1,31 @@
 from behave import given, when, then
+import json
+import allure
+
+def attach_api_call(response, request_payload=None):
+    """Anexa os dados da requisição e resposta HTTP no relatório do Allure."""
+    if request_payload:
+        allure.attach(
+            json.dumps(request_payload, indent=2, ensure_ascii=False),
+            name="Request JSON Payload",
+            attachment_type=allure.attachment_type.JSON
+        )
+    response_details = f"Status Code: {response.status_code}\n"
+    if response.text:
+        try:
+            formatted_json = json.dumps(response.json(), indent=2, ensure_ascii=False)
+            response_details += f"\nResponse Body (JSON):\n{formatted_json}"
+        except Exception:
+            response_details += f"\nResponse Body:\n{response.text}"
+    else:
+        response_details += "\nResponse Body is empty."
+        
+    allure.attach(
+        response_details,
+        name="API Response Data",
+        attachment_type=allure.attachment_type.TEXT
+    )
+
 
 @given('que existe um empregado cadastrado com os seguintes dados:')
 def step_impl(context):
@@ -12,6 +39,7 @@ def step_impl(context):
             "total_vacation_days": int(row['total_dias'])
         }
         response = context.client.post("/api/v1/employees", json=payload)
+        attach_api_call(response, payload)
         assert response.status_code == 201, f"Falha ao criar empregado: {response.text}"
         data = response.json()
         context.employee_id = data["id"]
@@ -22,6 +50,7 @@ def step_impl(context, nome, dias):
     # Buscar empregados requer estar autenticado
     context.auth_as("admin", "ADMIN")
     response = context.client.get("/api/v1/employees")
+    attach_api_call(response)
     assert response.status_code == 200
     employees = response.json()
     emp = next((e for e in employees if e["name"] == nome), None)
@@ -42,6 +71,7 @@ def step_impl(context, data_inicio, data_fim):
         "end_date": data_fim
     }
     response = context.client.post("/api/v1/vacations", json=payload)
+    attach_api_call(response, payload)
     context.last_response = response
     if response.status_code == 201:
         context.vacation_id = response.json()["id"]
@@ -57,6 +87,7 @@ def step_impl(context, status, dias):
 def step_impl(context, dias):
     context.auth_as("admin", "ADMIN")
     response = context.client.get(f"/api/v1/employees/{context.employee_id}")
+    attach_api_call(response)
     assert response.status_code == 200
     assert response.json()["vacation_days_left"] == dias, f"Esperava {dias} dias restantes, obteve {response.json()['vacation_days_left']}"
 
@@ -65,6 +96,7 @@ def step_impl(context, status, data_inicio, data_fim, dias, nome):
     # Buscar empregado por nome (Admin)
     context.auth_as("admin", "ADMIN")
     response = context.client.get("/api/v1/employees")
+    attach_api_call(response)
     employees = response.json()
     emp = next((e for e in employees if e["name"] == nome), None)
     assert emp is not None, f"Empregado {nome} não encontrado"
@@ -81,6 +113,7 @@ def step_impl(context, status, data_inicio, data_fim, dias, nome):
         "end_date": data_fim
     }
     response = context.client.post("/api/v1/vacations", json=payload)
+    attach_api_call(response, payload)
     assert response.status_code == 201, f"Falha ao solicitar férias: {response.text}"
     vac = response.json()
     context.vacation_id = vac["id"]
@@ -90,6 +123,7 @@ def step_impl(context, status, data_inicio, data_fim, dias, nome):
         context.auth_as("admin", "ADMIN")
         status_payload = {"status": "APPROVED"}
         app_res = context.client.patch(f"/api/v1/vacations/{context.vacation_id}/status", json=status_payload)
+        attach_api_call(app_res, status_payload)
         assert app_res.status_code == 200, f"Falha ao aprovar férias: {app_res.text}"
 
 @when('o gestor aprova a solicitação de férias')
@@ -97,6 +131,7 @@ def step_impl(context):
     context.auth_as("admin", "ADMIN")
     payload = {"status": "APPROVED"}
     response = context.client.patch(f"/api/v1/vacations/{context.vacation_id}/status", json=payload)
+    attach_api_call(response, payload)
     context.last_response = response
 
 @when('o gestor rejeita a solicitação de férias')
@@ -104,6 +139,7 @@ def step_impl(context):
     context.auth_as("admin", "ADMIN")
     payload = {"status": "REJECTED"}
     response = context.client.patch(f"/api/v1/vacations/{context.vacation_id}/status", json=payload)
+    attach_api_call(response, payload)
     context.last_response = response
 
 @then('o status da solicitação deve ser alterado para "{status}"')
@@ -115,6 +151,7 @@ def step_impl(context, status):
 def step_impl(context, disponiveis, tirados):
     context.auth_as("admin", "ADMIN")
     response = context.client.get(f"/api/v1/employees/{context.employee_id}")
+    attach_api_call(response)
     assert response.status_code == 200
     emp = response.json()
     assert emp["vacation_days_left"] == disponiveis, f"Esperava {disponiveis} dias disponíveis, obteve {emp['vacation_days_left']}"
@@ -124,6 +161,7 @@ def step_impl(context, disponiveis, tirados):
 def step_impl(context, disponiveis, tirados):
     context.auth_as("admin", "ADMIN")
     response = context.client.get(f"/api/v1/employees/{context.employee_id}")
+    attach_api_call(response)
     assert response.status_code == 200
     emp = response.json()
     assert emp["vacation_days_left"] == disponiveis, f"Esperava {disponiveis} dias disponíveis, obteve {emp['vacation_days_left']}"
@@ -138,6 +176,7 @@ def step_impl(context):
 def step_impl(context):
     # Faz uma requisição GET sem o cabeçalho Authorization
     context.last_response = context.client.get("/api/v1/vacations")
+    attach_api_call(context.last_response)
 
 @then('o sistema deve retornar um erro de não autenticado')
 def step_impl(context):
